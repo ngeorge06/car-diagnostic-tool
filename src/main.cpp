@@ -5,46 +5,62 @@
 #define CAN_CS_PIN 5
 
 MCP_CAN CAN(CAN_CS_PIN);
-unsigned long lastRequest = 0;
+
+unsigned long captureStart = 0;
+const unsigned long CAPTURE_DURATION = 30000; // 30 seconds
+bool capturing = false;
+
+void printFrame(unsigned long timestamp, long unsigned int id, byte len, byte* buf) {
+  Serial.print(timestamp);
+  Serial.print("ms  ID: 0x");
+  Serial.print(id, HEX);
+  Serial.print("  Data:");
+  for (int i = 0; i < len; i++) {
+    Serial.print(" ");
+    if (buf[i] < 0x10) Serial.print("0");
+    Serial.print(buf[i], HEX);
+  }
+  Serial.println();
+}
 
 void setup() {
   Serial.begin(115200);
   while (!Serial) { }
 
   Serial.println("Initializing MCP2515...");
-
   if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
     Serial.println("MCP2515 initialized OK");
   } else {
     Serial.println("MCP2515 init FAILED - check wiring");
   }
 
-  CAN.setMode(MCP_NORMAL); // back to normal - actually talk on the real bus
-}
+  CAN.setMode(MCP_NORMAL); // instead of MCP_LISTENONLY
+  Serial.println();
+  Serial.println("Pure passive capture - nothing will be sent.");
+  Serial.println("Starting in 2 seconds...");
+  delay(2000);
 
-void requestPID(byte pid) {
-  byte data[8] = {0x02, 0x01, pid, 0x00, 0x00, 0x00, 0x00, 0x00};
-  CAN.sendMsgBuf(0x7DF, 0, 8, data);
+  Serial.println(">>> LISTENING NOW <<<");
+  captureStart = millis();
+  capturing = true;
 }
 
 void loop() {
-  if (millis() - lastRequest > 500) {
-    requestPID(0x0C); // RPM
-    lastRequest = millis();
-  }
+  if (capturing) {
+    unsigned long elapsed = millis() - captureStart;
 
-  if (CAN_MSGAVAIL == CAN.checkReceive()) {
-    long unsigned int rxId;
-    byte len;
-    byte buf[8];
-    CAN.readMsgBuf(&rxId, &len, buf);
+    if (elapsed >= CAPTURE_DURATION) {
+      capturing = false;
+      Serial.println(">>> CAPTURE COMPLETE - nothing was transmitted during this test <<<");
+      return;
+    }
 
-    if (rxId == 0x7E8) {
-      if (buf[2] == 0x0C) {
-        int rpm = ((buf[3] * 256) + buf[4]) / 4;
-        Serial.print("RPM: ");
-        Serial.println(rpm);
-      }
+    if (CAN_MSGAVAIL == CAN.checkReceive()) {
+      long unsigned int rxId;
+      byte len;
+      byte buf[8];
+      CAN.readMsgBuf(&rxId, &len, buf);
+      printFrame(elapsed, rxId, len, buf);
     }
   }
 }
