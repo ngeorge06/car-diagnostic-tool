@@ -12,12 +12,14 @@ void setup() {
   while (!Serial) { }
 
   Serial.println("Initializing MCP2515...");
+
   if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
     Serial.println("MCP2515 initialized OK");
   } else {
     Serial.println("MCP2515 init FAILED - check wiring");
   }
-  CAN.setMode(MCP_NORMAL);
+
+  CAN.setMode(MCP_NORMAL); // back to normal - actually talk on the real bus
 }
 
 void requestPID(byte pid) {
@@ -27,7 +29,7 @@ void requestPID(byte pid) {
 
 void loop() {
   if (millis() - lastRequest > 500) {
-    requestPID(0x0C);
+    requestPID(0x0C); // RPM
     lastRequest = millis();
   }
 
@@ -36,10 +38,6 @@ void loop() {
     byte len;
     byte buf[8];
     CAN.readMsgBuf(&rxId, &len, buf);
-    
-    Serial.print("Got frame ID: 0x");
-    Serial.println(rxId, HEX);
-
 
     if (rxId == 0x7E8) {
       if (buf[2] == 0x0C) {
