@@ -36,6 +36,10 @@ void loop() {
     byte len;
     byte buf[8];
     CAN.readMsgBuf(&rxId, &len, buf);
+    
+    Serial.print("Got frame ID: 0x");
+    Serial.println(rxId, HEX);
+
 
     if (rxId == 0x7E8) {
       if (buf[2] == 0x0C) {
